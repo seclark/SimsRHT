@@ -30,15 +30,17 @@ def get_data_fn(projectax, nres, beta, tstamp, rhtparams=None, type="density"):
     
     
 def plot_sims_and_rht():
+    """
+    plot density and RHT backprojection for a single beta at three timestamps
+    """
     
-    fig, xarr = plt.subplots(2, 3)
+    fig, xarr = plt.subplots(2, 3, figsize=(10,7))
     
-    allbetas = ["02", "2", "20"]
     alltimes = ["0010", "0030", "0050"]
-    #tstamp = "0050"
     beta = "20"
     
     for i, tstamp in enumerate(alltimes):
+        # get relevant simulation and RHT data
         fn_rht = get_data_fn("z", 512, beta, tstamp, rhtparams=[25, 1, 0.7], type="density")
         fn_dens = get_data_fn("z", 512, beta, tstamp, rhtparams=None, type="density")
         fn_Qsim = get_data_fn("z", 512, beta, tstamp, rhtparams=None, type="Q")
@@ -51,32 +53,45 @@ def plot_sims_and_rht():
 
         ysize, xsize = rht_im.shape
         X, Y = np.meshgrid(np.arange(xsize), np.arange(ysize), indexing='ij')
+        
+        # plot density and backprojection fields
         xarr[0, i].pcolor(Y, X, np.log10(dens_im))
         xarr[1, i].pcolor(Y, X, rht_im)
         
-        xarr[0, i].set_title(r"$t = {}$".format(tstamp))
-        
-        # plot vectors
+        # overplot pseudovectors from Bsim and theta_RHT
         overplot_vectors(Qsim, Usim, ax=xarr[0, i], norm=True, intrht=False, skipint=25)
-        #overplot_vectors(Qsim, Usim, ax=xarr[1, i], norm=True, intrht=False, skipint=25, color="yellow")
         QRHT, URHT, URHTsq, QRHTsq, intrht = RHT_tools.grid_QU_RHT(fn_rht, save=False)
         overplot_vectors(QRHT, URHT, ax=xarr[1, i], norm=True, intrht=False, skipint=25)
         
+        # title from timestamp
+        xarr[0, i].set_title(r"$t = {}$".format(tstamp))
+        
     plt.suptitle(r"z, 512, $\beta$ = {}".format(beta))
+    xarr[0, 0].set_ylabel("log(density), $B_{sim}$ $\mathrm{overlaid}$")
+    xarr[1, 0].set_ylabel(r"$\int R(\theta)$, $\theta_{RHT}$ $\mathrm{overlaid}$")
     
 
 def overplot_vectors(Q, U, ax=None, norm=True, intrht=False, skipint=10, color="white"): 
     """
     overlay a quiver plot of pseudovectors
+    inputs: Q, U   :: Stokes fields
+            ax     :: plot axis
+            norm   :: True   : make all pseudovectors the same length
+            intrht :: False  : if True, only plot data over given backprojection amplitude threshold
+            skipint:: 10     : plot a pseudovector every skipint-th pixel in x and y
+            color  :: "white": color for pseudovectors
     """  
-
+    
+    # make all pseudovectors same length
     if norm:
         normc = np.sqrt(Q**2 + U**2)
         Q = Q/normc
         U = U/normc
-        thetamap = np.mod(0.5*np.arctan2(U, Q), np.pi)
-        Q = np.sin(thetamap)
-        U = np.cos(thetamap)
+
+    # quiver takes x- and y- components of the angle
+    thetamap = np.mod(0.5*np.arctan2(U, Q), np.pi)
+    Q = np.sin(thetamap)
+    U = np.cos(thetamap)
  
     ysize, xsize = thetamap.shape
     X, Y = np.meshgrid(np.arange(xsize), np.arange(ysize), indexing='ij')
@@ -84,7 +99,7 @@ def overplot_vectors(Q, U, ax=None, norm=True, intrht=False, skipint=10, color="
     if intrht is False:
         ax.quiver(Y[::skipint, ::skipint], X[::skipint, ::skipint], Q[::skipint, ::skipint], -U[::skipint, ::skipint], 
                headaxislength=0, headlength=0, pivot="mid", color=color)
-
+    # only display RHT data where RHT backprojection power > 1
     else:
         intcut = np.where(intrht > 1)
         cutY = Y[intcut]
